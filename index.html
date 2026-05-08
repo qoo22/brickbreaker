@@ -1,0 +1,1708 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>絵文字ブロック崩し ✨</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background:
+      radial-gradient(circle at 20% 10%, #2a1840 0%, transparent 40%),
+      radial-gradient(circle at 80% 90%, #1a3060 0%, transparent 40%),
+      linear-gradient(135deg, #0a0a1a 0%, #14142a 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  h1 {
+    font-size: 44px;
+    margin: 0 0 4px 0;
+    background: linear-gradient(45deg, #ff6b9d 0%, #c084fc 50%, #60a5fa 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 40px rgba(192, 132, 252, 0.4);
+    letter-spacing: 1px;
+  }
+  .subtitle { color: #a0a0c0; margin: 0 0 20px 0; font-size: 14px; }
+
+  #title-screen, #game-screen, #gameover-screen { width: 100%; max-width: 720px; text-align: center; }
+  #game-screen, #gameover-screen { display: none; }
+
+  /* Collection panel */
+  #collection-panel {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(192, 132, 252, 0.2);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 18px;
+    margin: 16px 0 24px 0;
+  }
+  .collection-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .collection-stats .big { font-size: 22px; font-weight: 700; }
+  .collection-stats .pct {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(45deg, #ff6b9d, #c084fc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .progress-bar {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f472b6, #c084fc, #60a5fa);
+    border-radius: 6px;
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 0 12px rgba(192, 132, 252, 0.6);
+  }
+
+  /* Rarity legend */
+  .rarity-legend {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin: 14px 0 4px 0;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .rarity-legend .rl {
+    display: flex; align-items: center; gap: 6px;
+    color: #ccc;
+  }
+  .rarity-legend .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .rl.common .dot { background: #94a3b8; color: #94a3b8; }
+  .rl.uncommon .dot { background: #60a5fa; color: #60a5fa; }
+  .rl.rare .dot { background: #c084fc; color: #c084fc; }
+  .rl.legendary .dot { background: #fbbf24; color: #fbbf24; }
+
+  .category {
+    text-align: left;
+    margin: 14px 0 6px 0;
+    font-size: 12px;
+    color: #a0a0c0;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 6px;
+  }
+  .emoji-cell {
+    aspect-ratio: 1;
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid transparent;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    filter: grayscale(100%) brightness(0.25);
+    transition: all 0.3s;
+    position: relative;
+  }
+  .emoji-cell.collected { filter: none; }
+  .emoji-cell.r-common.collected   { border-color: #94a3b8; background: rgba(148, 163, 184, 0.08); }
+  .emoji-cell.r-uncommon.collected { border-color: #60a5fa; background: rgba(96, 165, 250, 0.10); box-shadow: 0 0 8px rgba(96,165,250,0.4); }
+  .emoji-cell.r-rare.collected     { border-color: #c084fc; background: rgba(192, 132, 252, 0.14); box-shadow: 0 0 12px rgba(192,132,252,0.55); }
+  .emoji-cell.r-legendary.collected{
+    border-color: #fbbf24;
+    background: rgba(251, 191, 36, 0.18);
+    box-shadow: 0 0 18px rgba(251,191,36,0.7);
+    animation: legGlow 2s ease-in-out infinite;
+  }
+  /* faint border for uncollected to hint rarity */
+  .emoji-cell.r-uncommon:not(.collected)  { border-color: rgba(96,165,250,0.2); }
+  .emoji-cell.r-rare:not(.collected)      { border-color: rgba(192,132,252,0.25); }
+  .emoji-cell.r-legendary:not(.collected) { border-color: rgba(251,191,36,0.3); }
+
+  @keyframes legGlow {
+    0%, 100% { box-shadow: 0 0 16px rgba(251,191,36,0.6); }
+    50%      { box-shadow: 0 0 26px rgba(251,191,36,1); }
+  }
+
+  .emoji-cell .count {
+    position: absolute;
+    bottom: 1px;
+    right: 3px;
+    font-size: 9px;
+    color: #fff;
+    background: rgba(0,0,0,0.55);
+    padding: 0 3px;
+    border-radius: 4px;
+    font-family: monospace;
+  }
+
+  button {
+    background: linear-gradient(45deg, #ff6b9d, #c084fc);
+    color: #fff;
+    border: none;
+    padding: 16px 48px;
+    font-size: 20px;
+    border-radius: 100px;
+    cursor: pointer;
+    font-weight: 700;
+    box-shadow: 0 8px 28px rgba(192, 132, 252, 0.4);
+    transition: transform 0.15s, box-shadow 0.15s;
+    letter-spacing: 2px;
+    margin: 8px;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(192, 132, 252, 0.55); }
+  button.secondary { background: rgba(255,255,255,0.08); box-shadow: none; }
+  button.secondary:hover { background: rgba(255,255,255,0.14); }
+
+  /* Game HUD */
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    margin-bottom: 8px;
+    padding: 10px 18px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .hud .label { font-size: 11px; color: #a0a0c0; text-transform: uppercase; letter-spacing: 1px; display: block; }
+  .hud .value { font-size: 22px; font-weight: 700; }
+
+  #canvas-wrap { position: relative; display: inline-block; }
+  #canvas {
+    background: linear-gradient(180deg, #0d0d24 0%, #08081a 100%);
+    border-radius: 12px;
+    box-shadow: 0 0 40px rgba(192, 132, 252, 0.25), inset 0 0 60px rgba(0,0,0,0.5);
+    display: block;
+    cursor: none;
+    /* モバイル対応: 幅に合わせて縮小、タッチのデフォルト挙動 (スクロール/ピンチ) を抑止 */
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    aspect-ratio: 640 / 720;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #canvas-wrap {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  /* スマホ向けの調整 */
+  @media (max-width: 640px) {
+    body { padding: 10px; }
+    h1 { font-size: 32px; }
+    .subtitle { font-size: 12px; }
+    .collection-stats .big { font-size: 16px; }
+    .collection-stats .pct { font-size: 24px; }
+    button { padding: 12px 28px; font-size: 16px; letter-spacing: 1px; }
+    #collection-panel { padding: 14px; }
+    .hud { font-size: 14px; padding: 8px 12px; }
+    .hud .label { font-size: 9px; letter-spacing: 0.5px; }
+    .hud .value { font-size: 18px; }
+    #gameover-screen { padding: 24px 16px; }
+    #gameover-screen h2 { font-size: 40px; }
+    .stat-row .stat { padding: 12px 18px; min-width: 90px; }
+    .stat .value { font-size: 22px; }
+    .ranking-header { font-size: 16px; }
+    #ranking-list li { font-size: 12px; padding: 6px 8px; }
+    #ranking-list .rank-stage,
+    #ranking-list .rank-date { font-size: 10px; margin-left: 6px; }
+    .rarity-legend { font-size: 11px; gap: 10px; }
+  }
+
+  /* Game over screen */
+  #gameover-screen {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(192,132,252,0.3);
+    border-radius: 20px;
+    padding: 40px;
+    backdrop-filter: blur(10px);
+  }
+  #gameover-screen h2 {
+    font-size: 56px;
+    margin: 0;
+    background: linear-gradient(45deg, #ff6b9d, #c084fc);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .stat-row { display: flex; justify-content: space-around; margin: 24px 0; flex-wrap: wrap; gap: 16px; }
+  .stat-row .stat { background: rgba(255,255,255,0.05); padding: 16px 28px; border-radius: 12px; min-width: 120px; }
+  .stat .label { font-size: 11px; color: #a0a0c0; text-transform: uppercase; letter-spacing: 1px; }
+  .stat .value { font-size: 28px; font-weight: 800; margin-top: 4px; }
+  .new-emojis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin: 20px 0;
+    min-height: 40px;
+  }
+
+  /* ハイスコアランキング */
+  #ranking-section {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin: 20px 0;
+    text-align: left;
+  }
+  .ranking-header {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+    margin: 0 0 14px 0;
+    color: #fbbf24;
+    letter-spacing: 2px;
+  }
+  #ranking-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  #ranking-list li {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 3px;
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    transition: background 0.2s;
+  }
+  #ranking-list li.current {
+    background: linear-gradient(90deg, rgba(251,191,36,0.2), rgba(192,132,252,0.18));
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    box-shadow: 0 0 14px rgba(251, 191, 36, 0.35);
+    font-weight: 700;
+  }
+  #ranking-list .rank-num {
+    color: #94a3b8;
+    width: 32px;
+    font-weight: 700;
+    font-family: monospace;
+  }
+  #ranking-list li:nth-child(1) .rank-num { color: #fbbf24; }
+  #ranking-list li:nth-child(2) .rank-num { color: #d4d4d8; }
+  #ranking-list li:nth-child(3) .rank-num { color: #d97706; }
+  #ranking-list .rank-score {
+    flex: 1;
+    font-weight: 700;
+    color: #fff;
+    font-family: monospace;
+  }
+  #ranking-list .rank-stage {
+    color: #c084fc;
+    font-size: 12px;
+    margin-left: 10px;
+    font-weight: 600;
+  }
+  #ranking-list .rank-date {
+    color: #6b7280;
+    font-size: 11px;
+    margin-left: 10px;
+    font-family: monospace;
+  }
+  .no-rank {
+    text-align: center;
+    color: #6b7280;
+    padding: 16px;
+    font-size: 13px;
+  }
+  .new-rank-banner {
+    text-align: center;
+    color: #fbbf24;
+    font-size: 16px;
+    font-weight: 800;
+    margin: 8px 0 0 0;
+    text-shadow: 0 0 18px rgba(251, 191, 36, 0.6);
+  }
+  .new-emoji {
+    font-size: 32px;
+    padding: 6px 10px;
+    background: rgba(192,132,252,0.2);
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(192,132,252,0.5);
+    animation: pop 0.5s;
+    border: 2px solid #c084fc;
+  }
+  .new-emoji.r-legendary { background: rgba(251,191,36,0.25); box-shadow: 0 0 22px rgba(251,191,36,0.8); border-color: #fbbf24; }
+  .new-emoji.r-rare { background: rgba(192,132,252,0.25); border-color: #c084fc; }
+  .new-emoji.r-uncommon { background: rgba(96,165,250,0.25); border-color: #60a5fa; }
+  .new-emoji.r-common { background: rgba(148,163,184,0.20); border-color: #94a3b8; }
+
+  @keyframes pop {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  .hint { font-size: 13px; color: #a0a0c0; margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<div id="title-screen">
+  <h1>絵文字ブロック崩し</h1>
+  <div class="subtitle">🌀 迷路に入ると大連鎖 ｜ レアな絵文字を集めよう</div>
+
+  <div id="collection-panel">
+    <div class="collection-stats">
+      <span class="big">コレクション <span id="cs-collected">0</span> / <span id="cs-total">0</span></span>
+      <span class="pct" id="cs-pct">0%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="cs-bar" style="width:0%"></div></div>
+    <div class="rarity-legend">
+      <span class="rl common"><span class="dot"></span>コモン</span>
+      <span class="rl uncommon"><span class="dot"></span>アンコモン</span>
+      <span class="rl rare"><span class="dot"></span>レア</span>
+      <span class="rl legendary"><span class="dot"></span>レジェンダリー</span>
+    </div>
+    <div id="cs-categories"></div>
+  </div>
+
+  <button id="start-btn">スタート</button>
+  <button class="secondary" id="reset-btn">コレクションをリセット</button>
+  <div class="hint">PC: マウスでパドル ｜ クリック/スペースで発射</div>
+  <div class="hint">スマホ: 指でドラッグして角度を狙い、離して発射</div>
+</div>
+
+<div id="game-screen">
+  <div class="hud">
+    <div><span class="label">ステージ</span><span class="value" id="hud-stage">1</span></div>
+    <div><span class="label">スコア</span><span class="value" id="hud-score">0</span></div>
+    <div><span class="label">ライフ</span><span class="value" id="hud-lives">❤️❤️❤️</span></div>
+    <div><span class="label">コンボ</span><span class="value" id="hud-combo">0</span></div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="canvas" width="640" height="720"></canvas>
+  </div>
+</div>
+
+<div id="gameover-screen">
+  <h2 id="go-title">GAME OVER</h2>
+  <div class="stat-row">
+    <div class="stat"><div class="label">最終スコア</div><div class="value" id="go-score">0</div></div>
+    <div class="stat"><div class="label">到達ステージ</div><div class="value" id="go-stage">1</div></div>
+    <div class="stat"><div class="label">獲得シンボル</div><div class="value" id="go-newcount">0</div></div>
+  </div>
+  <div style="font-size:14px;color:#a0a0c0;">今回の新規収集</div>
+  <div class="new-emojis" id="go-newemojis"></div>
+
+  <div id="ranking-section">
+    <div class="ranking-header">🏆 ハイスコア TOP 10</div>
+    <ol id="ranking-list"></ol>
+    <div class="new-rank-banner" id="go-new-rank" style="display:none;"></div>
+  </div>
+
+  <button id="go-retry">もう一度</button>
+  <button class="secondary" id="go-title-btn">タイトルへ</button>
+</div>
+
+<script>
+/* ============================================================
+   絵文字ブロック崩し ── 迷路型 + レア度システム版
+   ============================================================ */
+
+// ── Emoji master list with rarity ────────────────
+// rarity weights for weighted-random spawn
+const RARITY_WEIGHT = {
+  common: 100,
+  uncommon: 30,
+  rare: 8,
+  legendary: 2
+};
+const RARITY_LABEL_JP = {
+  common: 'コモン',
+  uncommon: 'アンコモン',
+  rare: 'レア',
+  legendary: 'レジェンダリー'
+};
+const RARITY_COLOR = {
+  common: '#94a3b8',
+  uncommon: '#60a5fa',
+  rare: '#c084fc',
+  legendary: '#fbbf24'
+};
+
+const EMOJI_LIST = [
+  // ─ 動物 ─
+  { e:'🐱', cat:'動物', r:'common'    },
+  { e:'🐶', cat:'動物', r:'common'    },
+  { e:'🐰', cat:'動物', r:'common'    },
+  { e:'🐮', cat:'動物', r:'common'    },
+  { e:'🐷', cat:'動物', r:'common'    },
+  { e:'🐔', cat:'動物', r:'common'    },
+  { e:'🐧', cat:'動物', r:'common'    },
+  { e:'🐦', cat:'動物', r:'common'    },
+  { e:'🐻', cat:'動物', r:'uncommon'  },
+  { e:'🐼', cat:'動物', r:'uncommon'  },
+  { e:'🦊', cat:'動物', r:'uncommon'  },
+  { e:'🐨', cat:'動物', r:'uncommon'  },
+  { e:'🐝', cat:'動物', r:'uncommon'  },
+  { e:'🦋', cat:'動物', r:'uncommon'  },
+  { e:'🦁', cat:'動物', r:'rare'      },
+  { e:'🐯', cat:'動物', r:'rare'      },
+  { e:'🐳', cat:'動物', r:'rare'      },
+  { e:'🐢', cat:'動物', r:'rare'      },
+  { e:'🦄', cat:'動物', r:'legendary' },
+  { e:'🐉', cat:'動物', r:'legendary' },
+
+  // ─ 乗り物 ─
+  { e:'🚗', cat:'乗り物', r:'common'    },
+  { e:'🚕', cat:'乗り物', r:'common'    },
+  { e:'🚙', cat:'乗り物', r:'common'    },
+  { e:'🚌', cat:'乗り物', r:'common'    },
+  { e:'🚲', cat:'乗り物', r:'common'    },
+  { e:'🚓', cat:'乗り物', r:'uncommon'  },
+  { e:'🚑', cat:'乗り物', r:'uncommon'  },
+  { e:'🚒', cat:'乗り物', r:'uncommon'  },
+  { e:'🛵', cat:'乗り物', r:'uncommon'  },
+  { e:'✈️', cat:'乗り物', r:'uncommon'  },
+  { e:'🏎️', cat:'乗り物', r:'rare'      },
+  { e:'🚀', cat:'乗り物', r:'rare'      },
+  { e:'🚁', cat:'乗り物', r:'rare'      },
+  { e:'🚢', cat:'乗り物', r:'rare'      },
+  { e:'🛸', cat:'乗り物', r:'legendary' },
+
+  // ─ 食べ物 ─
+  { e:'🍎', cat:'食べ物', r:'common'    },
+  { e:'🍌', cat:'食べ物', r:'common'    },
+  { e:'🍇', cat:'食べ物', r:'common'    },
+  { e:'🍓', cat:'食べ物', r:'common'    },
+  { e:'🍔', cat:'食べ物', r:'common'    },
+  { e:'🍕', cat:'食べ物', r:'common'    },
+  { e:'🍣', cat:'食べ物', r:'uncommon'  },
+  { e:'🍩', cat:'食べ物', r:'uncommon'  },
+  { e:'🍰', cat:'食べ物', r:'uncommon'  },
+  { e:'🍫', cat:'食べ物', r:'uncommon'  },
+  { e:'🍱', cat:'食べ物', r:'rare'      },
+  { e:'🍦', cat:'食べ物', r:'rare'      },
+
+  // ─ お楽しみ ─
+  { e:'🎈', cat:'お楽しみ', r:'common'    },
+  { e:'⭐', cat:'お楽しみ', r:'common'    },
+  { e:'🎲', cat:'お楽しみ', r:'common'    },
+  { e:'🎁', cat:'お楽しみ', r:'uncommon'  },
+  { e:'🎮', cat:'お楽しみ', r:'uncommon'  },
+  { e:'🌈', cat:'お楽しみ', r:'rare'      },
+  { e:'💖', cat:'お楽しみ', r:'rare'      },
+  { e:'🏆', cat:'お楽しみ', r:'rare'      },
+  { e:'🌟', cat:'お楽しみ', r:'rare'      },
+  { e:'💎', cat:'お楽しみ', r:'legendary' },
+  { e:'👑', cat:'お楽しみ', r:'legendary' },
+  { e:'🔥', cat:'お楽しみ', r:'legendary' }
+];
+
+const TOTAL_EMOJIS = EMOJI_LIST.length;
+const EMOJI_BY = Object.fromEntries(EMOJI_LIST.map(x => [x.e, x]));
+
+// Pre-compute weighted pool for fast random selection
+const WEIGHT_TOTAL = EMOJI_LIST.reduce((s, x) => s + RARITY_WEIGHT[x.r], 0);
+function pickWeightedEmoji() {
+  let r = Math.random() * WEIGHT_TOTAL;
+  for (const x of EMOJI_LIST) {
+    r -= RARITY_WEIGHT[x.r];
+    if (r <= 0) return x.e;
+  }
+  return EMOJI_LIST[0].e;
+}
+function rarityOf(emoji) { return EMOJI_BY[emoji]?.r || 'common'; }
+
+// ── Persistent collection ────────────────────────
+const STORAGE_KEY = 'emojiBreakoutCollection_v2';
+let collection = {};
+try { collection = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { collection = {}; }
+function saveCollection() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collection)); } catch (e) {} }
+
+// ── Canvas / state ───────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let gameState = 'title';   // title | playing | gameover
+let lives, score, stage, comboCount, comboTimer, screenShake, comboBest;
+let mazeBottomY = 720;  // 迷路ブロック群の下端Y (エイム矢印の長さ計算に使う)
+let bricks = [], balls = [], drops = [], particles = [], floaters = [];
+let sessionNew = new Set();
+let mouseX = W / 2, mouseY = H / 2;
+let levelTransitionTimer = 0;
+
+const paddle = { x: W/2 - 70, y: H - 36, w: 140, h: 14, baseW: 140 };
+
+// ── Audio ────────────────────────────────────────
+let audioCtx;
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
+  }
+}
+function beep(freq, dur=0.05, type='square', vol=0.05) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.value = vol;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+  o.stop(audioCtx.currentTime + dur);
+}
+function playHit()    { beep(380 + Math.random()*240, 0.04, 'square', 0.025); }
+function playPower()  { beep(880, 0.08, 'sine', 0.06); setTimeout(()=>beep(1320, 0.1, 'sine', 0.06), 70); }
+function playLegend() {
+  // ascending arpeggio
+  [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'triangle', 0.07), i*90));
+}
+function playLose()   { beep(200, 0.3, 'sawtooth', 0.06); setTimeout(()=>beep(120, 0.4, 'sawtooth', 0.06), 100); }
+function playClear()  {
+  [523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.06), i*100));
+}
+
+// ── Stage generation ─────────────────────────────
+const COLS = 40;     // さらに細かいマスでブロック総数を増やす
+const BW = 16;
+const BH = 14;
+const GAP = 1;
+
+// Pattern table — 多彩な内部構造のパターン
+const PATTERNS = [
+  patternStadium,       // 同心リング (canonical 回遊型)
+  patternHash,          // 格子状の通路 (多重ループ)
+  patternFigure8,       // 8の字 (上下2ループ)
+  patternDiamondTrack,  // ダイヤ型同心輪
+  patternSnake,         // つづら折りの長い1本道
+  patternSpiral,        // らせん (層ごとにギャップが回転)
+  patternRandomMaze,    // ランダム迷路
+  patternChambers       // 4部屋連結
+];
+
+// パターン抽選 — ステージごとにランダムで選択 (たまに同じ構造になる)
+function pickPattern(stage) {
+  // ステージ番号に基づくシードで偏りを抑えつつランダム選択
+  return PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+}
+
+function generateStage() {
+  bricks = [];
+  // ブロック数増のため行数も拡大
+  const rows = Math.min(28 + Math.floor((stage - 1) / 4), 36);
+  const offsetX = (W - COLS * BW) / 2;
+  const offsetY = 20;
+  mazeBottomY = offsetY + rows * BH;  // 迷路下端の絶対Y座標
+
+  // パターンをランダム選択
+  const pattern = pickPattern(stage);
+  const mask = pattern(COLS, rows, stage);
+
+  // Build bricks
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < COLS; col++) {
+      if (!mask[row][col]) continue;
+      // 外周(端の1セル)は破壊不能 — 入口で抜けたセルにはそもそもブロックを置かないので安全
+      const isBorder = (row === 0 || row === rows - 1 || col === 0 || col === COLS - 1);
+      let hasEmoji = false, hasMulti = false, emoji = null;
+      if (!isBorder) {
+        const roll = Math.random();
+        // 3% emoji, 5% multiball, 92% plain
+        hasEmoji = roll < 0.03;
+        hasMulti = !hasEmoji && roll < 0.08;
+        if (hasEmoji) emoji = pickWeightedEmoji();
+      }
+      bricks.push({
+        x: offsetX + col * BW + GAP/2,
+        y: offsetY + row * BH + GAP/2,
+        w: BW - GAP,
+        h: BH - GAP,
+        cx: offsetX + col * BW + BW/2,
+        cy: offsetY + row * BH + BH/2,
+        col, row,
+        alive: true,
+        indestructible: isBorder,
+        emoji,
+        rarity: emoji ? rarityOf(emoji) : null,
+        multiball: hasMulti,
+        hue: ((row * 32 + col * 12) + stage * 15) % 360
+      });
+    }
+  }
+}
+
+// ── Patterns (2セル幅の通路を持つ回遊型迷路) ────
+// 設計: ほぼ全マスをブロックで埋め、2セル幅のループ通路を彫る。
+// ボールが入口から進入すると通路に沿って壁を破壊しながら回遊し、
+// 通路がほどけて出てくるまで長く滞留する。
+function fillAll(c, r) { return Array.from({length: r}, () => Array(c).fill(true)); }
+
+// 横通路 — 2セル幅 (rows i, i+1)
+function carveLineH(m, i, x1, x2) {
+  for (let dy = 0; dy < 2; dy++) {
+    const ri = i + dy;
+    if (ri < 0 || ri >= m.length) continue;
+    for (let j = Math.max(0, x1); j <= Math.min(m[0].length - 1, x2); j++) m[ri][j] = false;
+  }
+}
+// 縦通路 — 2セル幅 (cols j, j+1)
+function carveLineV(m, j, y1, y2) {
+  for (let dx = 0; dx < 2; dx++) {
+    const cj = j + dx;
+    if (cj < 0 || cj >= m[0].length) continue;
+    for (let i = Math.max(0, y1); i <= Math.min(m.length - 1, y2); i++) m[i][cj] = false;
+  }
+}
+// 矩形リング — 2セル幅の帯
+function carveRing(m, c, r, margin) {
+  for (let dy = 0; dy < 2; dy++) {
+    const top = margin + dy;
+    const bot = r - 1 - margin - dy;
+    for (let j = margin; j < c - margin; j++) {
+      if (top >= 0 && top < r) m[top][j] = false;
+      if (bot >= 0 && bot < r) m[bot][j] = false;
+    }
+  }
+  for (let dx = 0; dx < 2; dx++) {
+    const left  = margin + dx;
+    const right = c - 1 - margin - dx;
+    for (let i = margin; i < r - margin; i++) {
+      if (left >= 0 && left < c)  m[i][left]  = false;
+      if (right >= 0 && right < c) m[i][right] = false;
+    }
+  }
+}
+// 入口 — ランダムな位置から2セル幅で上に彫り、最初に当たる通路まで届かせる
+function carveEntranceFromBottom(m, c, r) {
+  // 不滅の左右壁を避けて、cols [3 .. c-5] のランダムな位置から開ける
+  const range = Math.max(1, c - 8);
+  const cCol = 3 + Math.floor(Math.random() * range);
+  for (let i = r - 1; i >= 0; i--) {
+    if (m[i][cCol] === false && m[i][cCol + 1] === false) break;
+    m[i][cCol] = false;
+    if (cCol + 1 < c) m[i][cCol + 1] = false;
+  }
+}
+
+// 1. スタジアム — 同心2-wideリング + 上中央で連絡 (canonical 回遊型)
+function patternStadium(c, r) {
+  const m = fillAll(c, r);
+  carveRing(m, c, r, 3);   // 外環 (rows 3-4 / r-5,r-4 など)
+  carveRing(m, c, r, 8);   // 内環 (rows 8-9 / r-10,r-9 など — 壁3セル厚)
+  const cCol = Math.floor(c / 2) - 1;
+  // 上中央で外環→内環を連絡 (2-wide vertical)
+  carveLineV(m, cCol, 3, 9);
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 2. ハッシュ格子 — 縦横の2-wide通路で多数のループ
+function patternHash(c, r) {
+  const m = fillAll(c, r);
+  carveRing(m, c, r, 2);                                            // 外環 (margin 2)
+  for (let i = 7; i < r - 4; i += 5) carveLineH(m, i, 2, c - 3);   // 横通路 (5行ステップで壁3厚)
+  for (let j = 8; j < c - 4; j += 6) carveLineV(m, j, 2, r - 3);   // 縦通路 (6列ステップで壁4厚)
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 3. 8の字 — 上下に積まれた2-wideループが中央で連絡
+function patternFigure8(c, r) {
+  const m = fillAll(c, r);
+  const midRow = Math.floor(r / 2) - 1;
+  // 上のループ
+  carveLineH(m, 3, 3, c - 5);
+  carveLineH(m, midRow, 3, c - 5);
+  carveLineV(m, 3, 3, midRow + 1);
+  carveLineV(m, c - 5, 3, midRow + 1);
+  // 下のループ
+  carveLineH(m, r - 5, 3, c - 5);
+  carveLineV(m, 3, midRow, r - 4);
+  carveLineV(m, c - 5, midRow, r - 4);
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 4. ダイヤトラック — 同心ダイヤの2-wide輪 (連続するマンハッタン距離2つ分)
+function patternDiamondTrack(c, r) {
+  const m = fillAll(c, r);
+  const cy = Math.floor(r / 2);
+  const cx = Math.floor(c / 2);
+  const outerR = Math.min(cy, cx) - 1;
+  const midR   = Math.max(4, Math.floor(outerR * 0.66));
+  const innerR = Math.max(2, Math.floor(outerR * 0.33));
+  for (let i = 0; i < r; i++) {
+    for (let j = 0; j < c; j++) {
+      const d = Math.abs(i - cy) + Math.abs(j - cx);
+      // 連続する2つのd値で2-wide風の輪に
+      if (d === outerR || d === outerR - 1) m[i][j] = false;
+      if (d === midR   || d === midR   - 1) m[i][j] = false;
+      if (d === innerR || d === innerR - 1) m[i][j] = false;
+    }
+  }
+  // 内外を繋ぐ2-wide連絡通路
+  carveLineV(m, cx - 1, cy - outerR, cy - innerR);
+  carveLineV(m, cx - 1, cy + innerR, cy + outerR);
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 5. スネーク — 2-wideのつづら折り長通路
+function patternSnake(c, r) {
+  const m = fillAll(c, r);
+  let row = 3;
+  let dir = 1;
+  while (row < r - 4) {
+    carveLineH(m, row, 3, c - 5);
+    const nextRow = row + 5;             // 5行ステップ (2-wide通路 + 3-wide壁)
+    if (nextRow < r - 3) {
+      const turnCol = (dir > 0) ? c - 5 : 3;
+      carveLineV(m, turnCol, row, nextRow + 1);
+    }
+    row = nextRow;
+    dir = -dir;
+  }
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 6. らせん — 同心リングを彫りつつ層ごとにギャップ位置を回転させ、
+// 内側に向かってボールが渦を描いて進む
+function patternSpiral(c, r) {
+  const m = fillAll(c, r);
+  let margin = 3;
+  let layer = 0;
+  while (margin * 2 + 6 <= Math.min(c, r)) {
+    carveRing(m, c, r, margin);
+    // 各層のギャップ位置を90°ずつ回転させて、層から層へ螺旋状に繋ぐ
+    const cCol = Math.floor(c / 2) - 1;
+    const cRow = Math.floor(r / 2) - 1;
+    const side = layer % 4;
+    if (side === 0) {
+      // 下中央のギャップ (外環→次の内環)
+      carveLineV(m, cCol, r - 1 - margin - 4, r - 1 - margin);
+    } else if (side === 1) {
+      carveLineH(m, cRow, margin, margin + 4);
+    } else if (side === 2) {
+      carveLineV(m, cCol, margin, margin + 4);
+    } else {
+      carveLineH(m, cRow, c - 1 - margin - 4, c - 1 - margin);
+    }
+    margin += 4;
+    layer++;
+  }
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 7. ランダム迷路 — 縦横の通路をランダム位置に配置し、毎回異なる迷路を生成
+function patternRandomMaze(c, r) {
+  const m = fillAll(c, r);
+  // 外環で全体の連結性確保
+  carveRing(m, c, r, 2);
+  // ランダムな横通路 4-6本
+  const numH = 4 + Math.floor(Math.random() * 3);
+  for (let n = 0; n < numH; n++) {
+    const row = 5 + Math.floor(Math.random() * Math.max(1, r - 11));
+    carveLineH(m, row, 2, c - 3);
+  }
+  // ランダムな縦通路 4-6本
+  const numV = 4 + Math.floor(Math.random() * 3);
+  for (let n = 0; n < numV; n++) {
+    const col = 5 + Math.floor(Math.random() * Math.max(1, c - 11));
+    carveLineV(m, col, 2, r - 3);
+  }
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 8. 4部屋連結 — 4つの長方形チャンバーが中央の十字路で繋がる
+function patternChambers(c, r) {
+  const m = fillAll(c, r);
+  const midX = Math.floor(c / 2);
+  const midY = Math.floor(r / 2);
+  // 各部屋の輪郭(2-wideリング)を彫る
+  // 左上
+  carveRing2Inside(m, c, r, 3, 3, midX - 3, midY - 3);
+  // 右上
+  carveRing2Inside(m, c, r, midX + 1, 3, c - 4, midY - 3);
+  // 左下
+  carveRing2Inside(m, c, r, 3, midY + 1, midX - 3, r - 4);
+  // 右下
+  carveRing2Inside(m, c, r, midX + 1, midY + 1, c - 4, r - 4);
+  // 中央の十字通路で4部屋を連結
+  carveLineV(m, midX - 1, 3, r - 3);
+  carveLineH(m, midY - 1, 3, c - 3);
+  carveEntranceFromBottom(m, c, r);
+  return m;
+}
+
+// 任意矩形の2-wide輪郭を彫るヘルパー
+function carveRing2Inside(m, c, r, x1, y1, x2, y2) {
+  if (x2 - x1 < 4 || y2 - y1 < 4) return;
+  // 上下バンド
+  for (let dy = 0; dy < 2; dy++) {
+    for (let j = x1; j <= x2; j++) {
+      if (y1 + dy >= 0 && y1 + dy < r) m[y1 + dy][j] = false;
+      if (y2 - dy >= 0 && y2 - dy < r) m[y2 - dy][j] = false;
+    }
+  }
+  // 左右バンド
+  for (let dx = 0; dx < 2; dx++) {
+    for (let i = y1; i <= y2; i++) {
+      if (x1 + dx >= 0 && x1 + dx < c) m[i][x1 + dx] = false;
+      if (x2 - dx >= 0 && x2 - dx < c) m[i][x2 - dx] = false;
+    }
+  }
+}
+
+// ── Game lifecycle ───────────────────────────────
+function startGame() {
+  ensureAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  lives = 3; score = 0; stage = 1;
+  comboCount = 0; comboTimer = 0; comboBest = 0; screenShake = 0;
+  drops = []; particles = []; floaters = [];
+  sessionNew = new Set();
+  generateStage();
+  resetBall();
+  paddle.w = paddle.baseW;
+  gameState = 'playing';
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'block';
+  document.getElementById('gameover-screen').style.display = 'none';
+  loop();
+}
+
+function resetBall() {
+  balls = [{
+    x: paddle.x + paddle.w/2,
+    y: paddle.y - 10,
+    dx: 0, dy: 0, r: 8,
+    onPaddle: true,
+    trail: []
+  }];
+}
+
+function loseLife() {
+  lives--;
+  playLose();
+  screenShake = 12;
+  if (lives <= 0) { gameOver(); return; }
+  resetBall();
+}
+
+function gameOver() {
+  gameState = 'gameover';
+  document.getElementById('go-title').textContent = 'GAME OVER';
+  showGameOverScreen();
+}
+
+function stageClear() {
+  playClear();
+  score += 200 * stage;
+  stage++;
+  comboCount = 0;
+  showFloater(W/2, H/2 - 60, '✨ STAGE CLEAR ✨', '#ffd700', 56);
+  showFloater(W/2, H/2 + 10, '次のステージへ →', '#ffffff', 22);
+  levelTransitionTimer = 90;
+  setTimeout(() => {
+    if (gameState !== 'playing') return;
+    generateStage();
+    resetBall();
+    levelTransitionTimer = 0;
+  }, 1500);
+}
+
+// ── ハイスコアランキング ────────────────────────
+const RANK_KEY = 'emojiBreakoutRanking_v1';
+const MAX_RANK = 10;
+
+function loadRanking() {
+  try { return JSON.parse(localStorage.getItem(RANK_KEY)) || []; }
+  catch (e) { return []; }
+}
+function saveRanking(scores) {
+  try { localStorage.setItem(RANK_KEY, JSON.stringify(scores)); } catch (e) {}
+}
+function addToRanking(scoreVal, stageVal) {
+  const id = Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const entry = { score: scoreVal, stage: stageVal, date: new Date().toISOString(), id };
+  const scores = loadRanking();
+  scores.push(entry);
+  scores.sort((a, b) => b.score - a.score);
+  const top = scores.slice(0, MAX_RANK);
+  saveRanking(top);
+  const rank = top.findIndex(e => e.id === id);  // 0-indexed, -1 if not in top
+  return { top, rank };
+}
+
+function showGameOverScreen() {
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('gameover-screen').style.display = 'block';
+  document.getElementById('go-score').textContent = score.toLocaleString();
+  document.getElementById('go-stage').textContent = stage;
+  document.getElementById('go-newcount').textContent = sessionNew.size;
+  const newWrap = document.getElementById('go-newemojis');
+  newWrap.innerHTML = '';
+  if (sessionNew.size === 0) {
+    newWrap.innerHTML = '<div style="color:#777;">新しいシンボルなし…またチャレンジ！</div>';
+  } else {
+    const order = ['legendary','rare','uncommon','common'];
+    const arr = [...sessionNew].sort((a, b) => order.indexOf(rarityOf(a)) - order.indexOf(rarityOf(b)));
+    arr.forEach(e => {
+      const el = document.createElement('div');
+      el.className = 'new-emoji r-' + rarityOf(e);
+      el.textContent = e;
+      el.title = RARITY_LABEL_JP[rarityOf(e)];
+      newWrap.appendChild(el);
+    });
+  }
+
+  // ランキング更新と描画
+  const { top, rank } = addToRanking(score, stage);
+  const rankList = document.getElementById('ranking-list');
+  rankList.innerHTML = '';
+  if (top.length === 0) {
+    rankList.innerHTML = '<li class="no-rank">まだ記録がありません</li>';
+  } else {
+    top.forEach((entry, idx) => {
+      const li = document.createElement('li');
+      if (idx === rank) li.classList.add('current');
+      const d = new Date(entry.date);
+      const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+      li.innerHTML =
+        `<span class="rank-num">${medal}</span>` +
+        `<span class="rank-score">${entry.score.toLocaleString()}</span>` +
+        `<span class="rank-stage">St.${entry.stage}</span>` +
+        `<span class="rank-date">${dateStr}</span>`;
+      rankList.appendChild(li);
+    });
+  }
+
+  // ランクインバナー
+  const banner = document.getElementById('go-new-rank');
+  if (rank >= 0) {
+    banner.style.display = 'block';
+    banner.textContent = `✨ ランクイン！ #${rank + 1} ✨`;
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function backToTitle() {
+  gameState = 'title';
+  document.getElementById('gameover-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('title-screen').style.display = 'block';
+  renderCollection();
+}
+
+// ── Brick interactions ───────────────────────────
+function hitBrick(brick) {
+  if (!brick.alive) return;
+  // 破壊不能ブロック (外枠) — 跳ね返るだけで壊れず、コンボもスコアも入らない
+  if (brick.indestructible) {
+    spawnParticles(brick.cx, brick.cy, 200, 2);
+    playHit();
+    return;
+  }
+  brick.alive = false;
+  comboCount++;
+  comboBest = Math.max(comboBest, comboCount);
+  comboTimer = 90;
+  // combo bonus
+  const bonus = Math.floor(Math.max(0, comboCount - 4) * 2);
+  score += 10 + bonus;
+  spawnParticles(brick.cx, brick.cy, brick.hue, 3 + Math.min(comboCount/8, 4));
+  playHit();
+
+  // combo banner milestones
+  if (comboCount === 5)  showFloater(W/2, 130, '🔥 5 COMBO!',         '#60a5fa', 32);
+  if (comboCount === 10) showFloater(W/2, 130, '💥 10 COMBO RAMPAGE!','#f472b6', 36);
+  if (comboCount === 20) showFloater(W/2, 130, '⚡ 20 COMBO UNSTOP!', '#fbbf24', 40);
+  if (comboCount === 35) showFloater(W/2, 130, '👑 35 COMBO LEGEND!', '#c084fc', 44);
+  if (comboCount === 50) showFloater(W/2, 130, '🌈 50 COMBO GODLIKE!','#ff6b9d', 48);
+  if (comboCount >= 8 && comboCount % 5 === 0) screenShake = Math.max(screenShake, 4);
+
+  if (brick.emoji) {
+    drops.push({
+      x: brick.cx, y: brick.cy,
+      type: 'emoji', emoji: brick.emoji,
+      rarity: brick.rarity, vy: 2.2, rot: 0
+    });
+  }
+  if (brick.multiball) {
+    drops.push({
+      x: brick.cx, y: brick.cy,
+      type: 'multiball', emoji: '⚡', vy: 2.2, rot: 0
+    });
+  }
+}
+
+function catchDrop(drop) {
+  if (drop.type === 'emoji') {
+    const isNew = !collection[drop.emoji];
+    const r = drop.rarity || rarityOf(drop.emoji);
+    if (isNew) sessionNew.add(drop.emoji);
+    collection[drop.emoji] = (collection[drop.emoji] || 0) + 1;
+    saveCollection();
+
+    if (isNew) {
+      const reward = { common: 100, uncommon: 200, rare: 500, legendary: 2000 }[r] || 100;
+      score += reward;
+      const label = { common: '✨ 新発見', uncommon: '💫 新発見', rare: '🌟 新発見・レア', legendary: '👑 LEGENDARY GET!' }[r];
+      const size = r === 'legendary' ? 38 : r === 'rare' ? 30 : 24;
+      showFloater(drop.x, drop.y - 30, label + ' ' + drop.emoji, RARITY_COLOR[r], size);
+      if (r === 'legendary') {
+        playLegend();
+        screenShake = 20;
+        // big celebration particles
+        for (let i = 0; i < 80; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const sp = 2 + Math.random() * 6;
+          particles.push({
+            x: drop.x, y: drop.y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+            hue: 40 + Math.random()*30, life: 1, size: 2 + Math.random()*4
+          });
+        }
+      } else {
+        playPower();
+      }
+    } else {
+      const repeat = { common: 30, uncommon: 60, rare: 150, legendary: 500 }[r] || 30;
+      score += repeat;
+      showFloater(drop.x, drop.y - 30, '+ ' + drop.emoji + ' ×' + collection[drop.emoji], RARITY_COLOR[r], 22);
+      playPower();
+    }
+  } else if (drop.type === 'multiball') {
+    spawnMultiball();
+    showFloater(drop.x, drop.y - 30, '⚡ マルチボール！', '#80f0ff', 28);
+    playPower();
+  }
+}
+
+function spawnMultiball() {
+  if (balls.length >= 100) return; // 画面のボール上限
+  const base = balls.find(b => !b.onPaddle) || balls[0];
+  if (!base) return;
+  for (let i = 0; i < 2; i++) {
+    const angle = (-Math.PI / 2) + (Math.random() - 0.5) * Math.PI * 0.6;
+    const speed = Math.hypot(base.dx, base.dy) || 6.5;
+    balls.push({
+      x: base.x, y: base.y,
+      dx: Math.cos(angle) * speed,
+      dy: Math.sin(angle) * speed,
+      r: 8, onPaddle: false, trail: []
+    });
+  }
+}
+
+// ── Particles & floaters ─────────────────────────
+function spawnParticles(x, y, hue, count) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 1 + Math.random() * 4;
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
+      hue: hue + (Math.random()*60 - 30),
+      life: 1,
+      size: 1.5 + Math.random()*2.5
+    });
+  }
+}
+
+function showFloater(x, y, text, color, size) {
+  floaters.push({ x, y, text, color: color || '#fff', size: size || 22, life: 1 });
+}
+
+// ── Update ───────────────────────────────────────
+function update() {
+  // ボールがパドル上にある間はパドルを固定 — そうしないとボールがマウスに
+  // 追従してしまい角度を狙えない。発射後はマウスでパドルを操作。
+  const anyBallOnPaddle = balls.some(b => b.onPaddle);
+  if (!anyBallOnPaddle) {
+    paddle.x = mouseX - paddle.w/2;
+    paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
+  }
+
+  for (const ball of balls) {
+    if (ball.onPaddle) {
+      ball.x = paddle.x + paddle.w/2;
+      ball.y = paddle.y - ball.r - 2;
+      continue;
+    }
+
+    const sp = Math.hypot(ball.dx, ball.dy);
+    const maxSp = 9 + stage * 0.1;
+    if (sp > maxSp) { ball.dx *= maxSp/sp; ball.dy *= maxSp/sp; }
+    if (sp < 5) { const s = 5/Math.max(0.1, sp); ball.dx *= s; ball.dy *= s; }
+
+    ball.trail.push({ x: ball.x, y: ball.y });
+    if (ball.trail.length > 10) ball.trail.shift();
+
+    ball.x += ball.dx; ball.y += ball.dy;
+
+    // Paddle bounce
+    if (ball.dy > 0 &&
+        ball.y + ball.r >= paddle.y &&
+        ball.y - ball.r <= paddle.y + paddle.h &&
+        ball.x >= paddle.x - 2 && ball.x <= paddle.x + paddle.w + 2) {
+      ball.y = paddle.y - ball.r - 0.1;
+      const hit = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
+      const angle = hit * (Math.PI / 3);
+      const speed = Math.max(6, Math.hypot(ball.dx, ball.dy));
+      ball.dx = Math.sin(angle) * speed;
+      ball.dy = -Math.abs(Math.cos(angle) * speed);
+      playHit();
+    }
+
+    // Brick collisions
+    // 不滅ブロックは破壊されないので1フレームに複数処理可能 — コーナー進入時に
+    // X/Y両軸をきちんと跳ね返すため break しない。壊れるブロックは1個だけ処理。
+    let destroyedThisFrame = false;
+    for (const brick of bricks) {
+      if (!brick.alive) continue;
+      if (destroyedThisFrame && !brick.indestructible) continue;
+      if (ball.x + ball.r > brick.x && ball.x - ball.r < brick.x + brick.w &&
+          ball.y + ball.r > brick.y && ball.y - ball.r < brick.y + brick.h) {
+
+        if (brick.indestructible) {
+          // 不滅の外枠ブロック — ボーダー位置から反射方向をハードコード
+          if (brick.col === 0) {
+            ball.x = brick.x + brick.w + ball.r + 0.01;
+            ball.dx =  Math.abs(ball.dx);
+          } else if (brick.col === COLS - 1) {
+            ball.x = brick.x - ball.r - 0.01;
+            ball.dx = -Math.abs(ball.dx);
+          } else if (brick.row === 0) {
+            ball.y = brick.y + brick.h + ball.r + 0.01;
+            ball.dy =  Math.abs(ball.dy);
+          } else {
+            // 下端の不滅ブロック (入口以外)。ボールが下から(パドル側から)当たった
+            // のか、内部の上から当たったのかで押し戻し方向が変わる
+            if (ball.dy < 0) {
+              // 上に動いている = パドル側 (下) から当たった → 下に跳ね返す
+              ball.y = brick.y + brick.h + ball.r + 0.01;
+              ball.dy =  Math.abs(ball.dy);
+            } else {
+              // 下に動いている = 迷路内部 (上) から当たった → 上に跳ね返す
+              ball.y = brick.y - ball.r - 0.01;
+              ball.dy = -Math.abs(ball.dy);
+            }
+          }
+          // 不滅ブロックは continue (break しない) — 隣接の不滅ブロックも処理する
+          continue;
+        }
+
+        // 壊れるブロック — 侵入深度で軸を、速度方向で押し出し向きを決める
+        const penL = (ball.x + ball.r) - brick.x;
+        const penR = (brick.x + brick.w) - (ball.x - ball.r);
+        const penT = (ball.y + ball.r) - brick.y;
+        const penB = (brick.y + brick.h) - (ball.y - ball.r);
+        const xPen = Math.min(penL, penR);
+        const yPen = Math.min(penT, penB);
+        const xTime = xPen / Math.max(0.1, Math.abs(ball.dx));
+        const yTime = yPen / Math.max(0.1, Math.abs(ball.dy));
+        if (xTime <= yTime) {
+          if (ball.dx > 0) {
+            ball.x = brick.x - ball.r - 0.01;
+            ball.dx = -Math.abs(ball.dx);
+          } else if (ball.dx < 0) {
+            ball.x = brick.x + brick.w + ball.r + 0.01;
+            ball.dx =  Math.abs(ball.dx);
+          } else {
+            if (penL < penR) { ball.x = brick.x - ball.r - 0.01; ball.dx = -1; }
+            else             { ball.x = brick.x + brick.w + ball.r + 0.01; ball.dx = 1; }
+          }
+        } else {
+          if (ball.dy > 0) {
+            ball.y = brick.y - ball.r - 0.01;
+            ball.dy = -Math.abs(ball.dy);
+          } else if (ball.dy < 0) {
+            ball.y = brick.y + brick.h + ball.r + 0.01;
+            ball.dy =  Math.abs(ball.dy);
+          } else {
+            if (penT < penB) { ball.y = brick.y - ball.r - 0.01; ball.dy = -1; }
+            else             { ball.y = brick.y + brick.h + ball.r + 0.01; ball.dy = 1; }
+          }
+        }
+        // 対称軌道のロック回避
+        ball.dx += (Math.random() - 0.5) * 0.15;
+        ball.dy += (Math.random() - 0.5) * 0.15;
+        hitBrick(brick);
+        destroyedThisFrame = true;
+        // 壊れるブロックは1フレーム1個だけ処理。残りの不滅ブロックも見るために
+        // ループは続ける (continue 条件で破壊不能のみ通すようにしてある)
+      }
+    }
+
+    // 画面端での反射 — パドル下のエリアには不滅ブロックが無いので
+    // ここで弾き返す。また、何らかの不具合でボールが不滅ブロックを
+    // すり抜けてしまっても、ここが最終防壁として機能する。
+    if (ball.x - ball.r < 0) {
+      ball.x = ball.r + 0.01;
+      ball.dx =  Math.abs(ball.dx);
+    }
+    if (ball.x + ball.r > W) {
+      ball.x = W - ball.r - 0.01;
+      ball.dx = -Math.abs(ball.dx);
+    }
+    if (ball.y - ball.r < 0) {
+      ball.y = ball.r + 0.01;
+      ball.dy =  Math.abs(ball.dy);
+    }
+    // 下方向は入口から落下するシナリオがあるので反射せず、画面下に出たら死亡
+    if (ball.y - ball.r > H) ball.dead = true;
+  }
+  balls = balls.filter(b => !b.dead);
+  if (balls.length === 0 && gameState === 'playing' && levelTransitionTimer === 0) loseLife();
+
+  // Drops
+  for (const d of drops) {
+    d.y += d.vy;
+    d.rot = (d.rot || 0) + 0.05;
+    if (d.y + 14 > paddle.y && d.y < paddle.y + paddle.h &&
+        d.x > paddle.x - 8 && d.x < paddle.x + paddle.w + 8) {
+      catchDrop(d); d.dead = true;
+    }
+    if (d.y > H + 30) d.dead = true;
+  }
+  drops = drops.filter(d => !d.dead);
+
+  // Particles
+  for (const p of particles) {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.13;
+    p.life -= 0.018;
+  }
+  particles = particles.filter(p => p.life > 0);
+
+  // Floaters
+  for (const f of floaters) { f.life -= 0.014; f.y -= 0.7; }
+  floaters = floaters.filter(f => f.life > 0);
+
+  if (comboTimer > 0) comboTimer--;
+  else if (comboCount > 0) comboCount = 0;
+
+  if (screenShake > 0) screenShake -= 1;
+
+  if (gameState === 'playing' && levelTransitionTimer === 0 && bricks.every(b => !b.alive || b.indestructible)) stageClear();
+  if (levelTransitionTimer > 0) levelTransitionTimer--;
+}
+
+// ── Draw ─────────────────────────────────────────
+function draw() {
+  ctx.save();
+
+  if (screenShake > 0) {
+    ctx.translate((Math.random()-0.5) * screenShake, (Math.random()-0.5) * screenShake);
+  }
+
+  ctx.fillStyle = '#08081a';
+  ctx.fillRect(0, 0, W, H);
+
+  // stars
+  for (let i = 0; i < 40; i++) {
+    const sx = (i * 137 + (Date.now() * 0.005)) % W;
+    const sy = (i * 53) % H;
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.05 + (i%5)*0.02) + ')';
+    ctx.fillRect(sx, sy, 1, 1);
+  }
+
+  // Bricks
+  for (const b of bricks) {
+    if (!b.alive) continue;
+
+    // 破壊不能 (外枠) — 暗いメタル調
+    if (b.indestructible) {
+      const grad = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
+      grad.addColorStop(0, '#5a5a6e');
+      grad.addColorStop(0.5, '#3a3a4a');
+      grad.addColorStop(1, '#1a1a26');
+      ctx.fillStyle = grad;
+      roundRect(ctx, b.x, b.y, b.w, b.h, 1);
+      ctx.fill();
+      // ハイライト (上1px)
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(b.x + 1, b.y + 1, b.w - 2, 1);
+      // 下のシャドウライン
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(b.x + 1, b.y + b.h - 2, b.w - 2, 1);
+      continue;
+    }
+
+    const sat = b.emoji ? 80 : (b.multiball ? 90 : 65);
+    const lit = b.emoji ? 60 : (b.multiball ? 65 : 50);
+
+    // legendary/rare emoji bricks have special pulsing border
+    if (b.rarity === 'legendary') {
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 14 + 6 * Math.sin(Date.now() * 0.008);
+    } else if (b.rarity === 'rare') {
+      ctx.shadowColor = '#c084fc';
+      ctx.shadowBlur = 8;
+    } else {
+      ctx.shadowBlur = 0;
+    }
+
+    const grad = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
+    grad.addColorStop(0, `hsl(${b.hue}, ${sat}%, ${lit+10}%)`);
+    grad.addColorStop(1, `hsl(${b.hue}, ${sat}%, ${lit-10}%)`);
+    ctx.fillStyle = grad;
+    roundRect(ctx, b.x, b.y, b.w, b.h, 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // top highlight (1px)
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(b.x + 1, b.y + 1, b.w - 2, 1);
+
+    // 小さなブロックなのでアイコンではなく中央のドットでマーキング
+    if (b.emoji) {
+      ctx.fillStyle = b.rarity ? RARITY_COLOR[b.rarity] : '#fff';
+      ctx.beginPath();
+      ctx.arc(b.x + b.w/2, b.y + b.h/2, b.rarity === 'legendary' ? 3 : 2.2, 0, Math.PI*2);
+      ctx.fill();
+      // legendaryには白いハイライト
+      if (b.rarity === 'legendary' || b.rarity === 'rare') {
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        ctx.arc(b.x + b.w/2 - 0.5, b.y + b.h/2 - 0.5, 0.8, 0, Math.PI*2);
+        ctx.fill();
+      }
+    } else if (b.multiball) {
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('⚡', b.x + b.w/2, b.y + b.h/2 + 0.5);
+    }
+  }
+
+  // Drops
+  for (const d of drops) {
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.rotate(Math.sin(d.rot)*0.3);
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (d.type === 'emoji' && d.rarity) {
+      ctx.shadowColor = RARITY_COLOR[d.rarity];
+      ctx.shadowBlur = d.rarity === 'legendary' ? 22 : (d.rarity === 'rare' ? 15 : 8);
+    } else if (d.type === 'multiball') {
+      ctx.shadowColor = '#80f0ff';
+      ctx.shadowBlur = 12;
+    }
+    ctx.fillText(d.emoji, 0, 0);
+    ctx.restore();
+  }
+
+  // Ball trails
+  for (const ball of balls) {
+    for (let i = 0; i < ball.trail.length; i++) {
+      const t = ball.trail[i];
+      const a = (i / ball.trail.length) * 0.5;
+      ctx.fillStyle = `rgba(255, 220, 100, ${a})`;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, ball.r * (i / ball.trail.length), 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // Balls
+  for (const ball of balls) {
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = 18;
+    const grad = ctx.createRadialGradient(ball.x - 2, ball.y - 2, 1, ball.x, ball.y, ball.r);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, '#fbbf24');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Paddle
+  ctx.shadowColor = '#c084fc';
+  ctx.shadowBlur = 14;
+  const pgrad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.h);
+  pgrad.addColorStop(0, '#ffffff');
+  pgrad.addColorStop(0.5, '#c084fc');
+  pgrad.addColorStop(1, '#7c3aed');
+  ctx.fillStyle = pgrad;
+  roundRect(ctx, paddle.x, paddle.y, paddle.w, paddle.h, 6);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Particles
+  for (const p of particles) {
+    ctx.fillStyle = `hsla(${p.hue}, 100%, 60%, ${p.life})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Floaters
+  for (const f of floaters) {
+    ctx.fillStyle = f.color;
+    ctx.globalAlpha = Math.min(1, f.life * 1.5);
+    ctx.font = `bold ${f.size}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = f.color;
+    ctx.shadowBlur = 14;
+    ctx.fillText(f.text, f.x, f.y);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  // パドル上のボールの発射角度をマウスで狙うための矢印
+  for (const ball of balls) {
+    if (!ball.onPaddle) continue;
+    const ang = getAimAngle(ball);
+    const sinA = Math.sin(ang);
+    const dyToMaze = mazeBottomY - ball.y;  // 迷路下端までの垂直距離 (負)
+    // 矢印は迷路下端Yに到達する長さに伸ばす (角度が浅いほど長くなる、最大900で打ち切り)
+    let len;
+    if (sinA < -0.01) {
+      len = Math.min(900, dyToMaze / sinA);
+    } else {
+      len = 300;
+    }
+    const tx = ball.x + Math.cos(ang) * len;
+    const ty = ball.y + Math.sin(ang) * len;
+    ctx.save();
+    // 点線本体
+    ctx.strokeStyle = 'rgba(255, 220, 100, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(ball.x, ball.y);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    // 矢印の先
+    ctx.setLineDash([]);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + Math.cos(ang + Math.PI - 0.4) * 14, ty + Math.sin(ang + Math.PI - 0.4) * 14);
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + Math.cos(ang + Math.PI + 0.4) * 14, ty + Math.sin(ang + Math.PI + 0.4) * 14);
+    ctx.stroke();
+    // 着地予測点 (迷路下端ライン上に) — 入口を狙いやすく
+    ctx.fillStyle = 'rgba(255, 220, 100, 0.9)';
+    ctx.beginPath();
+    ctx.arc(tx, ty, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (balls.some(b => b.onPaddle)) {
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('角度を狙って発射 (PC: クリック/スペース、スマホ: タップして離す)', W/2, H - 60);
+  }
+
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ── HUD ──────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('hud-stage').textContent = stage;
+  document.getElementById('hud-score').textContent = score.toLocaleString();
+  document.getElementById('hud-lives').textContent = lives > 0 ? '❤️'.repeat(lives) : '—';
+  document.getElementById('hud-combo').textContent = comboCount;
+}
+
+// ── Main loop ────────────────────────────────────
+function loop() {
+  if (gameState !== 'playing') return;
+  update();
+  draw();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+
+// ── Title-screen collection rendering ────────────
+function renderCollection() {
+  const collectedCount = EMOJI_LIST.filter(x => collection[x.e]).length;
+  const pct = TOTAL_EMOJIS === 0 ? 0 : Math.round((collectedCount / TOTAL_EMOJIS) * 100);
+  document.getElementById('cs-collected').textContent = collectedCount;
+  document.getElementById('cs-total').textContent = TOTAL_EMOJIS;
+  document.getElementById('cs-pct').textContent = pct + '%';
+  document.getElementById('cs-bar').style.width = pct + '%';
+
+  const wrap = document.getElementById('cs-categories');
+  wrap.innerHTML = '';
+
+  // group by category
+  const cats = {};
+  EMOJI_LIST.forEach(x => {
+    if (!cats[x.cat]) cats[x.cat] = [];
+    cats[x.cat].push(x);
+  });
+
+  // sort within each category by rarity (rare last so they stand out)
+  const order = ['common','uncommon','rare','legendary'];
+  for (const cat in cats) cats[cat].sort((a,b) => order.indexOf(a.r) - order.indexOf(b.r));
+
+  for (const cat of Object.keys(cats)) {
+    const list = cats[cat];
+    const got = list.filter(x => collection[x.e]).length;
+    const heading = document.createElement('div');
+    heading.className = 'category';
+    const tally = list.reduce((a, x) => { a[x.r] = (a[x.r]||0) + (collection[x.e]?1:0); return a; }, {common:0, uncommon:0, rare:0, legendary:0});
+    const totalsByR = list.reduce((a, x) => { a[x.r] = (a[x.r]||0) + 1; return a; }, {common:0, uncommon:0, rare:0, legendary:0});
+    let breakdown = '';
+    order.forEach(r => {
+      if (totalsByR[r]) breakdown += `<span style="color:${RARITY_COLOR[r]};margin-left:8px;">${tally[r]}/${totalsByR[r]}</span>`;
+    });
+    heading.innerHTML = `<span>${cat}  ${got} / ${list.length}</span><span>${breakdown}</span>`;
+    wrap.appendChild(heading);
+
+    const grid = document.createElement('div');
+    grid.className = 'collection-grid';
+    list.forEach(x => {
+      const cell = document.createElement('div');
+      cell.className = 'emoji-cell r-' + x.r;
+      cell.textContent = x.e;
+      cell.title = `${x.e} ${RARITY_LABEL_JP[x.r]}` + (collection[x.e] ? ` ×${collection[x.e]}` : ' (未収集)');
+      if (collection[x.e]) {
+        cell.classList.add('collected');
+        if (collection[x.e] > 1) {
+          const cnt = document.createElement('span');
+          cnt.className = 'count';
+          cnt.textContent = '×' + collection[x.e];
+          cell.appendChild(cnt);
+        }
+      }
+      grid.appendChild(cell);
+    });
+    wrap.appendChild(grid);
+  }
+}
+
+// ── Input ────────────────────────────────────────
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - rect.left) * (W / rect.width);
+  mouseY = (e.clientY - rect.top)  * (H / rect.height);
+});
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  if (t) {
+    mouseX = (t.clientX - rect.left) * (W / rect.width);
+    mouseY = (t.clientY - rect.top)  * (H / rect.height);
+  }
+}, { passive: false });
+
+// マウス位置からの発射角度を返す (上向き範囲にクランプ)
+function getAimAngle(ball) {
+  let dx = mouseX - ball.x;
+  let dy = mouseY - ball.y;
+  if (dy > -10) dy = -10;            // 必ず少し上向き
+  let ang = Math.atan2(dy, dx);
+  // 真左/真右になりすぎないようにクランプ (-170°〜-10°)
+  return Math.max(-Math.PI + 0.18, Math.min(-0.18, ang));
+}
+
+function launchBalls() {
+  ensureAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  for (const ball of balls) {
+    if (ball.onPaddle) {
+      ball.onPaddle = false;
+      const ang = getAimAngle(ball);
+      const speed = 7;
+      ball.dx = Math.cos(ang) * speed;
+      ball.dy = Math.sin(ang) * speed;
+    }
+  }
+}
+canvas.addEventListener('mousedown', launchBalls);
+
+// タッチデバイス: ドラッグで角度を狙い、指を離して発射
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  if (t) {
+    mouseX = (t.clientX - rect.left) * (W / rect.width);
+    mouseY = (t.clientY - rect.top)  * (H / rect.height);
+  }
+  // 音声コンテキストはユーザー操作で起動 (iOS/Androidで音を鳴らすのに必須)
+  ensureAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  // パドル上にボールがあれば発射 (狙った方向に)
+  if (balls.some(b => b.onPaddle)) launchBalls();
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', (e) => {
+  e.preventDefault();
+}, { passive: false });
+window.addEventListener('keydown', (e) => {
+  if (gameState === 'playing' && (e.key === ' ' || e.code === 'Space')) {
+    e.preventDefault();
+    launchBalls();
+  }
+});
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('コレクションをリセットしますか？')) {
+    collection = {}; saveCollection(); renderCollection();
+  }
+});
+document.getElementById('go-retry').addEventListener('click', startGame);
+document.getElementById('go-title-btn').addEventListener('click', backToTitle);
+
+// ── Init ─────────────────────────────────────────
+renderCollection();
+</script>
+
+</body>
+</html>
