@@ -538,8 +538,8 @@
   <div id="save-info" style="display:none; margin: 4px 0 12px 0; font-size: 13px; color:#a0a0c0;"></div>
   <button class="secondary" id="reset-btn">コレクションをリセット</button>
   <button class="secondary" id="reset-save-btn" style="display:none;">セーブを破棄</button>
-  <div class="hint">PC: マウスで発射台の位置を決め、押し下げて角度を狙い、離して発射 (スペースで即発射)</div>
-  <div class="hint">スマホ: 指でタッチした位置に発射台が固定 → ドラッグで角度 → 離して発射</div>
+  <div class="hint">PC: 1回目クリックで発射台の位置決め → 角度を狙って2回目クリックで発射 (スペースで即発射)</div>
+  <div class="hint">スマホ: 押したまま指でドラッグして発射台を動かし、離して位置確定 → 狙う方向にタップで発射</div>
 </div>
 
 <div id="game-screen">
@@ -2685,11 +2685,12 @@ function draw() {
     ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
     if (!aimingMode) {
-      // フェーズA: 発射台位置を決める
-      ctx.fillText('① 発射台の位置を決めてマウスを押す (スマホ: 指でタッチ)', W/2, H - 60);
+      // フェーズA: 発射台位置を決める (PCはマウスでホバー→1回目クリック、
+      //           スマホは指で押したままドラッグ→離す)
+      ctx.fillText('① 発射台の位置を決める  (PC: マウス→クリック  /  スマホ: 押したままドラッグ→離す)', W/2, H - 60);
     } else {
-      // フェーズB: 角度を狙う
-      ctx.fillText('② 角度を狙って離すと発射 (スペースキーでも即発射)', W/2, H - 60);
+      // フェーズB: 角度を決めて発射
+      ctx.fillText('② 発射方向を狙って発射  (PC: 2回目クリック  /  スマホ: 狙う方向にタップ)', W/2, H - 60);
     }
   }
 
@@ -2860,6 +2861,11 @@ canvas.addEventListener('touchmove', (e) => {
     mouseX = (t.clientX - rect.left) * (W / rect.width);
     mouseY = (t.clientY - rect.top)  * (H / rect.height);
   }
+  // フェーズA(位置決め)中はドラッグでパドルを直接動かす
+  // (update ループでも追従しているが、フレーム待ちが発生しないよう明示更新)
+  if (!aimingMode && balls.some(b => b.onPaddle)) {
+    paddle.x = Math.max(0, Math.min(W - paddle.w, mouseX - paddle.w/2));
+  }
 }, { passive: false });
 
 // マウス位置からの発射角度を返す (上向き範囲にクランプ)
@@ -2887,31 +2893,28 @@ function launchBalls() {
   aimingMode = false;
 }
 
-// マウス: 押下で「発射台の位置を確定して角度照準」、離して発射
-// (フェーズA: マウス移動でパドルが追従 → 押下で位置ロック → ドラッグで角度
-//  → 離した瞬間に発射)
+// マウス: 1回目クリックで発射台の位置を確定 (フェーズB へ)、
+//        2回目クリックで発射。
+// フェーズA中はマウス移動でパドルが追従、フェーズB中は照準矢印が
+// マウス位置に追従する。
 canvas.addEventListener('mousedown', (e) => {
   ensureAudio();
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  if (balls.some(b => b.onPaddle)) {
-    // フェーズB へ: パドル位置を固定して角度照準モードに入る
+  if (!balls.some(b => b.onPaddle)) return;
+  if (!aimingMode) {
+    // 1回目: 現在のパドル位置で確定し、角度照準モードへ
     aimingMode = true;
-  }
-});
-window.addEventListener('mouseup', (e) => {
-  if (aimingMode && balls.some(b => b.onPaddle)) {
-    launchBalls();
   } else {
-    aimingMode = false;
+    // 2回目: 発射
+    launchBalls();
   }
-});
-// マウスがキャンバスから外れた状態で離した場合の保険
-canvas.addEventListener('mouseleave', (e) => {
-  // 離れただけではキャンセルせず、aimingMode は維持 (mouseup で確定/解除)
 });
 
-// タッチデバイス: 指を置いた瞬間にその位置にパドルをロックして角度照準、
-//                ドラッグで角度を調整、指を離して発射
+// タッチデバイス:
+//   フェーズA: 指を画面に置いて押したままドラッグ → 発射台が指に追従。
+//             指を離した瞬間にパドル位置が確定し、角度照準モードへ移行。
+//   フェーズB: もう一度タップ(or タッチドラッグして離す)→ そのタップ位置の
+//             方向にボールを発射。
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
   const rect = canvas.getBoundingClientRect();
@@ -2923,24 +2926,36 @@ canvas.addEventListener('touchstart', (e) => {
   // 音声コンテキストはユーザー操作で起動 (iOS/Androidで音を鳴らすのに必須)
   ensureAudio();
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-
-  // タッチではホバーが無いので、まず最初のフレームでパドルを指の位置に揃え、
-  // 次のフレームから角度照準モードに切り替える。
-  if (balls.some(b => b.onPaddle)) {
+  // フェーズA中: 指の現在位置にパドルを即スナップ (update ループ任せだと
+  // 1フレーム遅れて重く感じることがあるので、ここでも明示的に追従)
+  if (!aimingMode && balls.some(b => b.onPaddle)) {
     paddle.x = Math.max(0, Math.min(W - paddle.w, mouseX - paddle.w/2));
-    aimingMode = true;
   }
 }, { passive: false });
 
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
-  // パドル上にボールがあれば発射 (狙った方向に)
-  if (balls.some(b => b.onPaddle)) launchBalls();
-  aimingMode = false;
+  // 最後の指の位置を mouseX/Y に反映
+  const t = e.changedTouches && e.changedTouches[0];
+  if (t) {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = (t.clientX - rect.left) * (W / rect.width);
+    mouseY = (t.clientY - rect.top)  * (H / rect.height);
+  }
+  if (!balls.some(b => b.onPaddle)) return;
+  if (!aimingMode) {
+    // フェーズA終了: 指を離した位置に発射台を固定して角度照準モードへ
+    paddle.x = Math.max(0, Math.min(W - paddle.w, mouseX - paddle.w/2));
+    aimingMode = true;
+  } else {
+    // フェーズB: 指を離した位置(= 狙う方向)に発射
+    launchBalls();
+  }
 }, { passive: false });
 
 canvas.addEventListener('touchcancel', (e) => {
   e.preventDefault();
+  // タッチが OS にキャンセルされた場合は安全側にフェーズリセット
   aimingMode = false;
 }, { passive: false });
 window.addEventListener('keydown', (e) => {
